@@ -1,0 +1,9 @@
+torch>=2.7.0
+torchvision>=0.22.0
+captcha>=0.7.1
+tqdm>=4.66.0
+numpy>=1.26.0
+fastapi>=0.115.0
+uvicorn>=0.34.0
+python-multipart>=0.0.18
+Pillow>=11.0.0

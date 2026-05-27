@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>验证码识别</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 720px;
+            width: 100%;
+            padding: 24px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 32px;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            border: 1px solid #334155;
+        }
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #94a3b8;
+        }
+        .paste-zone {
+            border: 2px dashed #475569;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .paste-zone:hover, .paste-zone.drag-over {
+            border-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.05);
+        }
+        .paste-zone .hint {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        .paste-zone img {
+            max-width: 100%;
+            max-height: 120px;
+            border-radius: 8px;
+        }
+        .result-box {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .result-text {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 6px;
+            color: #f1f5f9;
+            background: #0f172a;
+            padding: 8px 20px;
+            border-radius: 8px;
+            min-width: 120px;
+            text-align: center;
+        }
+        .result-text.loading {
+            color: #475569;
+            font-size: 16px;
+            letter-spacing: 0;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        .btn-secondary:hover { background: #475569; }
+        .btn-copy {
+            background: #7c3aed;
+            color: white;
+        }
+        .btn-copy:hover { background: #6d28d9; }
+        .generate-area {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .captcha-preview {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 8px;
+            min-width: 200px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .captcha-preview img {
+            max-height: 64px;
+        }
+        .captcha-preview .placeholder {
+            color: #475569;
+            font-size: 13px;
+        }
+        .generate-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .answer-text {
+            font-size: 20px;
+            font-weight: 600;
+            color: #34d399;
+            letter-spacing: 4px;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22c55e;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>验证码识别</h1>
+
+        <div class="card">
+            <h2>粘贴识别</h2>
+            <div class="paste-zone" id="pasteZone">
+                <div id="pasteHint">
+                    <div style="font-size: 36px; margin-bottom: 8px;">📋</div>
+                    <div>Ctrl + V 粘贴验证码图片</div>
+                    <div class="hint">或点击此处选择文件 / 拖拽图片到此处</div>
+                </div>
+                <img id="pastePreview" style="display:none;" />
+            </div>
+            <input type="file" id="fileInput" accept="image/*" style="display:none;" />
+            <div class="result-box">
+                <div class="result-text loading" id="predictResult">等待输入</div>
+                <button class="btn btn-copy" id="copyPredictBtn" style="display:none;" onclick="copyText('predictResult')">复制</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>随机生成</h2>
+            <div class="generate-area">
+                <div class="captcha-preview" id="captchaPreview">
+                    <span class="placeholder">点击生成</span>
+                </div>
+                <div class="generate-actions">
+                    <button class="btn btn-primary" onclick="generateCaptcha()">生成验证码</button>
+                    <div class="answer-text" id="captchaAnswer"></div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-copy" id="copyAnswerBtn" style="display:none;" onclick="copyAnswer()">复制答案</button>
+                        <button class="btn btn-secondary" id="downloadBtn" style="display:none;" onclick="downloadCaptcha()">下载图片</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let currentCaptchaBase64 = '';
+        let currentAnswer = '';
+
+        // 粘贴事件
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    handleImage(file);
+                    return;
+                }
+            }
+        });
+
+        // 拖拽事件
+        const pasteZone = document.getElementById('pasteZone');
+        pasteZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            pasteZone.classList.add('drag-over');
+        });
+        pasteZone.addEventListener('dragleave', () => {
+            pasteZone.classList.remove('drag-over');
+        });
+        pasteZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            pasteZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                handleImage(e.dataTransfer.files[0]);
+            }
+        });
+
+        // 点击选择文件
+        pasteZone.addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleImage(e.target.files[0]);
+            }
+        });
+
+        function handleImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('pastePreview');
+                const hint = document.getElementById('pasteHint');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                hint.style.display = 'none';
+                predictCaptcha(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function predictCaptcha(base64Data) {
+            const resultEl = document.getElementById('predictResult');
+            const copyBtn = document.getElementById('copyPredictBtn');
+            resultEl.textContent = '识别中...';
+            resultEl.className = 'result-text loading';
+            copyBtn.style.display = 'none';
+
+            try {
+                const res = await fetch('/predict-base64', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Data })
+                });
+                const data = await res.json();
+                resultEl.textContent = data.result || '识别失败';
+                resultEl.className = 'result-text';
+                copyBtn.style.display = 'inline-block';
+            } catch (err) {
+                resultEl.textContent = '请求失败';
+                resultEl.className = 'result-text loading';
+            }
+        }
+
+        async function generateCaptcha() {
+            const preview = document.getElementById('captchaPreview');
+            const answerEl = document.getElementById('captchaAnswer');
+            const copyBtn = document.getElementById('copyAnswerBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            preview.innerHTML = '<span class="placeholder">生成中...</span>';
+            answerEl.textContent = '';
+
+            try {
+                const res = await fetch('/generate');
+                const data = await res.json();
+                currentCaptchaBase64 = data.image;
+                currentAnswer = data.answer;
+
+                preview.innerHTML = `<img src="${data.image}" />`;
+                answerEl.textContent = data.answer;
+                copyBtn.style.display = 'inline-block';
+                downloadBtn.style.display = 'inline-block';
+            } catch (err) {
+                preview.innerHTML = '<span class="placeholder">生成失败</span>';
+            }
+        }
+
+        function copyText(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => showToast('已复制'));
+        }
+
+        function copyAnswer() {
+            navigator.clipboard.writeText(currentAnswer).then(() => showToast('已复制答案'));
+        }
+
+        function downloadCaptcha() {
+            if (!currentCaptchaBase64) return;
+            const a = document.createElement('a');
+            a.href = currentCaptchaBase64;
+            a.download = `captcha_${currentAnswer}.png`;
+            a.click();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 1500);
+        }
+    </script>
+</body>
+</html>
